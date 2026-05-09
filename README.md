@@ -1,14 +1,16 @@
 # tui-debug-mcp
 
-MCP server for debugging TUI and REPL applications.
+MCP server for debugging TUI applications via terminal emulation.
 
-## Features
+## How It Works
 
-- **Session Inspection**: View current session state, history, and context
-- **Message Logging**: Log and inspect messages sent to/from LLM
-- **Tool Call Tracing**: Track all tool calls with timing and results
-- **State Snapshots**: Capture and compare session states
-- **Interactive Debugging**: Pause execution and inspect internal state
+This MCP simulates a terminal (PTY) that runs TUI applications. You can:
+- Start a TUI app in a virtual terminal
+- Read screen output frame by frame
+- Send keyboard input and special keys
+- Capture the current screen state
+
+This allows Claude Code to interact with and debug TUI applications like Spark.
 
 ## Installation
 
@@ -18,37 +20,88 @@ pip install tui-debug-mcp
 
 ## Usage
 
-Add to your application configuration:
+Add to Claude Code MCP settings:
 
-```yaml
-mcp_servers:
-  tui-debug:
-    command: tui-debug-mcp
-    args: []
+```json
+{
+  "mcpServers": {
+    "tui-debug": {
+      "command": "tui-debug-mcp"
+    }
+  }
+}
 ```
 
 ## Tools
 
-### `debug_get_session_info`
-Get current session information including mode, language, and history count.
+### `tui_start_session`
+Start a new TUI session.
 
-### `debug_get_history`
-Get conversation history with optional limit.
+```json
+{
+  "session_id": "spark-test",
+  "command": "python -m spark",
+  "rows": 24,
+  "cols": 80
+}
+```
 
-### `debug_get_last_tool_call`
-Get details of the last tool call including timing and result.
+### `tui_read_output`
+Read output from the terminal.
 
-### `debug_get_tool_calls`
-Get all tool calls in the current session.
+```json
+{
+  "session_id": "spark-test",
+  "timeout": 0.5
+}
+```
 
-### `debug_set_breakpoint`
-Set a breakpoint on a specific tool name to pause execution.
+### `tui_send_input`
+Send text input to the TUI.
 
-### `debug_inspect_state`
-Inspect internal state (loaded modules, settings, etc.).
+```json
+{
+  "session_id": "spark-test",
+  "text": "hello"
+}
+```
 
-### `debug_export_session`
-Export the current session to a JSON file for analysis.
+### `tui_send_key`
+Send special keys: `enter`, `tab`, `escape`, `up`, `down`, `left`, `right`, `backspace`, `delete`, `home`, `end`, `ctrl_c`, `ctrl_d`, `ctrl_l`, `ctrl_z`, `f1`-`f4`.
+
+```json
+{
+  "session_id": "spark-test",
+  "key": "enter"
+}
+```
+
+### `tui_capture_screen`
+Capture current screen content.
+
+### `tui_list_sessions`
+List all active sessions.
+
+### `tui_end_session`
+Terminate a session.
+
+### `tui_get_history`
+Get input/output history.
+
+### `tui_is_alive`
+Check if session process is running.
+
+## Example: Testing Spark
+
+```
+1. tui_start_session: {"session_id": "spark", "command": "python -m spark"}
+2. tui_read_output: See welcome screen
+3. tui_send_input: {"session_id": "spark", "text": "hello"}
+4. tui_send_key: {"session_id": "spark", "key": "enter"}
+5. tui_read_output: See response
+6. tui_send_key: {"session_id": "spark", "key": "ctrl_c"}  # Exit
+7. tui_end_session: {"session_id": "spark"}
+```
 
 ## License
 
