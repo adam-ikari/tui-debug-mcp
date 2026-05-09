@@ -1,26 +1,80 @@
 # tui-debug-mcp
 
-MCP server for debugging TUI applications via terminal emulation.
+真正的 TUI 调试工具 - 通过伪终端（PTY）调试 TUI 应用。
 
-## How It Works
+## 第一性原理
 
-This MCP simulates a terminal (PTY) that runs TUI applications. You can:
-- Start a TUI app in a virtual terminal
-- Read screen output frame by frame
-- Send keyboard input and special keys
-- Capture the current screen state
+调试 TUI 需要：
+1. **看到屏幕内容** - 捕获终端输出
+2. **发送输入** - 文本和特殊按键
+3. **观察响应** - 看到变化
 
-This allows Claude Code to interact with and debug TUI applications like Spark.
+## 工具列表
 
-## Installation
+### 会话管理
+
+| 工具 | 描述 |
+|------|------|
+| `tui_start` | 启动 TUI 应用，返回初始屏幕 |
+| `tui_stop` | 停止会话 |
+| `tui_list` | 列出所有会话 |
+
+### 屏幕操作
+
+| 工具 | 描述 |
+|------|------|
+| `tui_read` | 读取当前屏幕（包含 ANSI 转义） |
+| `tui_screenshot` | 获取清理后的纯文本快照 |
+
+### 输入操作
+
+| 工具 | 描述 |
+|------|------|
+| `tui_type` | 输入文本 |
+| `tui_key` | 发送特殊按键 |
+
+### 状态
+
+| 工具 | 描述 |
+|------|------|
+| `tui_alive` | 检查进程是否存活 |
+| `tui_history` | 获取输入/输出历史 |
+
+## 支持的按键
+
+`enter`, `tab`, `escape`, `up`, `down`, `left`, `right`, `backspace`, `delete`, `home`, `end`, `ctrl_c`, `ctrl_d`, `ctrl_l`, `ctrl_z`, `ctrl_a`, `ctrl_e`, `ctrl_k`, `ctrl_u`, `ctrl_w`, `f1`-`f10`, `page_up`, `page_down`
+
+## 使用示例
+
+```
+1. tui_start: {"session_id": "spark", "command": "cd ~/zero-agent && PYTHONPATH=src python -m spark"}
+   → 看到欢迎屏幕
+
+2. tui_type: {"session_id": "spark", "text": "hello"}
+   → 输入文本
+
+3. tui_key: {"session_id": "spark", "key": "enter"}
+   → 发送回车，看到响应
+
+4. tui_screenshot: {"session_id": "spark"}
+   → 获取清理后的屏幕内容
+
+5. tui_key: {"session_id": "spark", "key": "ctrl_c"}
+   → 退出
+
+6. tui_stop: {"session_id": "spark"}
+   → 结束会话
+```
+
+## 安装
 
 ```bash
 pip install tui-debug-mcp
 ```
 
-## Usage
+## 配置
 
-Add to Claude Code MCP settings:
+添加到 Claude Code MCP 设置：
 
 ```json
 {
@@ -30,77 +84,6 @@ Add to Claude Code MCP settings:
     }
   }
 }
-```
-
-## Tools
-
-### `tui_start_session`
-Start a new TUI session.
-
-```json
-{
-  "session_id": "spark-test",
-  "command": "python -m spark",
-  "rows": 24,
-  "cols": 80
-}
-```
-
-### `tui_read_output`
-Read output from the terminal.
-
-```json
-{
-  "session_id": "spark-test",
-  "timeout": 0.5
-}
-```
-
-### `tui_send_input`
-Send text input to the TUI.
-
-```json
-{
-  "session_id": "spark-test",
-  "text": "hello"
-}
-```
-
-### `tui_send_key`
-Send special keys: `enter`, `tab`, `escape`, `up`, `down`, `left`, `right`, `backspace`, `delete`, `home`, `end`, `ctrl_c`, `ctrl_d`, `ctrl_l`, `ctrl_z`, `f1`-`f4`.
-
-```json
-{
-  "session_id": "spark-test",
-  "key": "enter"
-}
-```
-
-### `tui_capture_screen`
-Capture current screen content.
-
-### `tui_list_sessions`
-List all active sessions.
-
-### `tui_end_session`
-Terminate a session.
-
-### `tui_get_history`
-Get input/output history.
-
-### `tui_is_alive`
-Check if session process is running.
-
-## Example: Testing Spark
-
-```
-1. tui_start_session: {"session_id": "spark", "command": "python -m spark"}
-2. tui_read_output: See welcome screen
-3. tui_send_input: {"session_id": "spark", "text": "hello"}
-4. tui_send_key: {"session_id": "spark", "key": "enter"}
-5. tui_read_output: See response
-6. tui_send_key: {"session_id": "spark", "key": "ctrl_c"}  # Exit
-7. tui_end_session: {"session_id": "spark"}
 ```
 
 ## License
