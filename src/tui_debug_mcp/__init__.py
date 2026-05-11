@@ -1,11 +1,12 @@
 # src/tui_debug_mcp/__init__.py
-"""TUI Debug MCP - 真正的 TUI 调试工具。
+"""TUI Debug MCP - Real TUI debugging tool.
 
-第一性原理：
-1. 启动 TUI 进程
-2. 捕获屏幕输出（ANSI 终端内容）
-3. 发送键盘输入
-4. 观察响应
+First principles:
+1. Start TUI process
+2. Capture screen output (ANSI terminal content)
+3. Send keyboard input
+4. Observe response
+5. Record and replay sessions
 """
 
 import asyncio
@@ -19,11 +20,17 @@ import termios
 import fcntl
 import struct
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
+
+
+# Recording storage directory
+RECORDINGS_DIR = Path.home() / ".tui-debug-mcp" / "recordings"
+RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class TUIProcess:
@@ -299,6 +306,59 @@ async def run_server():
                     "required": ["session_id"],
                 },
             ),
+
+            # Recording
+            Tool(
+                name="tui_record_save",
+                description="Save session recording to file.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "name": {"type": "string", "description": "Recording name (optional, defaults to session_id)"},
+                    },
+                    "required": ["session_id"],
+                },
+            ),
+            Tool(
+                name="tui_record_load",
+                description="Load a saved recording.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Recording name"},
+                    },
+                    "required": ["name"],
+                },
+            ),
+            Tool(
+                name="tui_record_list",
+                description="List all saved recordings.",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="tui_record_delete",
+                description="Delete a saved recording.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Recording name"},
+                    },
+                    "required": ["name"],
+                },
+            ),
+            Tool(
+                name="tui_record_playback",
+                description="Playback a recording step by step (returns each input/output pair).",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Recording name"},
+                        "step": {"type": "integer", "description": "Step number (0-indexed)"},
+                    },
+                    "required": ["name", "step"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -310,11 +370,11 @@ async def run_server():
             cols = arguments.get("cols", 80)
 
             if session_id in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 已存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 已存在")]
 
             proc = TUIProcess(session_id, command, rows, cols)
             if not proc.start():
-                return [TextContent(type="text", text=f"错误：无法启动命令 '{command}'")]
+                return [TextContent(type="text", text=f"Error: Cannot start command '{command}'")]
 
             _sessions[session_id] = proc
 
@@ -327,7 +387,7 @@ async def run_server():
         elif name == "tui_stop":
             session_id = arguments["session_id"]
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions.pop(session_id)
             proc.terminate()
@@ -350,7 +410,7 @@ async def run_server():
             wait = arguments.get("wait", 0.5)
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions[session_id]
             await asyncio.sleep(wait)
@@ -361,7 +421,7 @@ async def run_server():
             session_id = arguments["session_id"]
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions[session_id]
             # 清理 ANSI 转义序列
@@ -376,11 +436,11 @@ async def run_server():
             text = arguments["text"]
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions[session_id]
             if not proc.send_input(text):
-                return [TextContent(type="text", text="错误：发送失败")]
+                return [TextContent(type="text", text="Error: Send failed")]
 
             await asyncio.sleep(0.1)
             screen = proc.read_screen(0.3)
@@ -391,11 +451,11 @@ async def run_server():
             key = arguments["key"]
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions[session_id]
             if not proc.send_key(key):
-                return [TextContent(type="text", text="错误：发送失败")]
+                return [TextContent(type="text", text="Error: Send failed")]
 
             await asyncio.sleep(0.1)
             screen = proc.read_screen(0.3)
@@ -405,7 +465,7 @@ async def run_server():
             session_id = arguments["session_id"]
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' 不存在")]
 
             proc = _sessions[session_id]
             return [TextContent(type="text", text=json.dumps({"alive": proc.is_alive()}))]
@@ -415,13 +475,95 @@ async def run_server():
             limit = arguments.get("limit", 50)
 
             if session_id not in _sessions:
-                return [TextContent(type="text", text=f"错误：会话 '{session_id}' 不存在")]
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' not found")]
 
             proc = _sessions[session_id]
             history = proc.history[-limit:]
             return [TextContent(type="text", text=json.dumps(history, indent=2, ensure_ascii=False))]
 
-        return [TextContent(type="text", text=f"未知工具: {name}")]
+        # Recording tools
+        elif name == "tui_record_save":
+            session_id = arguments["session_id"]
+            rec_name = arguments.get("name", session_id)
+
+            if session_id not in _sessions:
+                return [TextContent(type="text", text=f"Error: Session '{session_id}' not found")]
+
+            proc = _sessions[session_id]
+            recording = {
+                "session_id": session_id,
+                "command": proc.command,
+                "rows": proc.rows,
+                "cols": proc.cols,
+                "created_at": proc.created_at,
+                "history": proc.history,
+            }
+
+            rec_file = RECORDINGS_DIR / f"{rec_name}.json"
+            rec_file.write_text(json.dumps(recording, indent=2, ensure_ascii=False))
+
+            return [TextContent(type="text", text=f"Recording saved: {rec_name}\nSteps: {len(proc.history)}")]
+
+        elif name == "tui_record_load":
+            rec_name = arguments["name"]
+            rec_file = RECORDINGS_DIR / f"{rec_name}.json"
+
+            if not rec_file.exists():
+                return [TextContent(type="text", text=f"Error: Recording '{rec_name}' not found")]
+
+            recording = json.loads(rec_file.read_text())
+            return [TextContent(type="text", text=json.dumps(recording, indent=2, ensure_ascii=False))]
+
+        elif name == "tui_record_list":
+            recordings = []
+            for rec_file in RECORDINGS_DIR.glob("*.json"):
+                try:
+                    data = json.loads(rec_file.read_text())
+                    recordings.append({
+                        "name": rec_file.stem,
+                        "command": data.get("command", "unknown"),
+                        "steps": len(data.get("history", [])),
+                        "created_at": data.get("created_at", "unknown"),
+                    })
+                except Exception:
+                    pass
+            return [TextContent(type="text", text=json.dumps(recordings, indent=2, ensure_ascii=False))]
+
+        elif name == "tui_record_delete":
+            rec_name = arguments["name"]
+            rec_file = RECORDINGS_DIR / f"{rec_name}.json"
+
+            if not rec_file.exists():
+                return [TextContent(type="text", text=f"Error: Recording '{rec_name}' not found")]
+
+            rec_file.unlink()
+            return [TextContent(type="text", text=f"Recording deleted: {rec_name}")]
+
+        elif name == "tui_record_playback":
+            rec_name = arguments["name"]
+            step = arguments["step"]
+
+            rec_file = RECORDINGS_DIR / f"{rec_name}.json"
+
+            if not rec_file.exists():
+                return [TextContent(type="text", text=f"Error: Recording '{rec_name}' not found")]
+
+            recording = json.loads(rec_file.read_text())
+            history = recording.get("history", [])
+
+            if step < 0 or step >= len(history):
+                return [TextContent(type="text", text=f"Error: Step {step} out of range (0-{len(history)-1})")]
+
+            entry = history[step]
+            return [TextContent(type="text", text=json.dumps({
+                "step": step,
+                "total_steps": len(history),
+                "type": entry.get("type"),
+                "content": entry.get("content"),
+                "timestamp": entry.get("timestamp"),
+            }, indent=2, ensure_ascii=False))]
+
+        return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
