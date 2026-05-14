@@ -55,7 +55,10 @@ class TUIProcess:
 
             if self.pid == 0:
                 # 子进程：执行命令
-                os.setsid()
+                try:
+                    os.setsid()
+                except OSError:
+                    pass  # Ignore setsid failure in sandboxed environments
                 os.execvp("sh", ["sh", "-c", self.command])
             else:
                 # 父进程：设置终端大小
