@@ -128,6 +128,9 @@ class TUIProcess:
         """发送特殊按键。"""
         key_map = {
             "enter": "\r",
+            "alt_enter": "\x1b\r",
+            "shift_enter": "\x1b[27;2~",
+            "space": " ",
             "tab": "\t",
             "escape": "\x1b",
             "esc": "\x1b",
@@ -137,6 +140,7 @@ class TUIProcess:
             "left": "\x1b[D",
             "backspace": "\x7f",
             "delete": "\x1b[3~",
+            "insert": "\x1b[2~",
             "home": "\x1b[H",
             "end": "\x1b[F",
             "ctrl_c": "\x03",
@@ -148,6 +152,8 @@ class TUIProcess:
             "ctrl_k": "\x0b",
             "ctrl_u": "\x15",
             "ctrl_w": "\x17",
+            "ctrl_backslash": "\x1c",  # Ctrl+\ for IME toggle
+            "ctrl_space": "\x00",  # NUL byte for Ctrl+Space
             "f1": "\x1bOP",
             "f2": "\x1bOQ",
             "f3": "\x1bOR",
@@ -276,7 +282,7 @@ async def run_server():
             ),
             Tool(
                 name="tui_key",
-                description="发送特殊按键：enter, tab, escape, up, down, left, right, backspace, delete, home, end, ctrl_c, ctrl_d, ctrl_l, ctrl_z, f1-f10, page_up, page_down。",
+                description="发送特殊按键：enter, alt_enter, shift_enter, space, tab, escape, up, down, left, right, backspace, delete, insert, home, end, ctrl_c, ctrl_d, ctrl_l, ctrl_z, ctrl_a, ctrl_e, ctrl_k, ctrl_u, ctrl_w, ctrl_backslash, ctrl_space, f1-f10, page_up, page_down。",
                 inputSchema={
                     "type": "object",
                     "properties": {
